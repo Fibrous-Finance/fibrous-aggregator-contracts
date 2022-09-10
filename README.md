@@ -25,7 +25,7 @@ contracts
 [contracts/router.cairo](./contracts/router.cairo) holds the Router contract
 that executes a given quote.
 <br>
-[contracts/swap_handler.caio](./contracts/swap_handler.cairo) executes a single
+[contracts/swap_handler.cairo](./contracts/swap_handler.cairo) executes a single
 quotes on a given protocol
 <br>
 [contracts/amm](./contracts/amm) holds the example AMM contracts we demonstrate
