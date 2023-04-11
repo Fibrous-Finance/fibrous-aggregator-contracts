@@ -24,7 +24,7 @@ mod SwapHandler {
     #[constructor]
     fn constructor(caller: felt252, _router: ContractAddress) {
         router::write(_router);
-    // TODO: wait openzeppelin to support ownable
+    // TODO wait openzeppelin to support ownable or write own 
     }
 
     #[view]
@@ -32,19 +32,29 @@ mod SwapHandler {
         router::read()
     }
 
-    // TODO: wait openzeppelin ownable to get_owner function
-
+    // @notice Set rouer address
+    // @param _router address of router
+    // @dev only owner can call
     #[external]
     fn set_router(_router: ContractAddress) {
-        // TODO: wait openzeppelin to support ownable
+        // TODO wait openzeppelin to support ownable or write own 
         router::write(_router)
     }
 
+    // @notice Set swap address
+    // @param idx index of swap address in swap_addresses array
+    // @param _swap_address address array
+    // @dev only owner can call
     #[external]
     fn set_swap_address(idx: felt252, _swap_address: ContractAddress) {
+        // TODO wait openzeppelin to support ownable or write own 
         swap_addresses::write(idx, _swap_address)
     }
 
+    // @notice swap tokens
+    // @param desc SwapDesc struct
+    // @param path SwapPath struct
+    // @dev only router can call
     #[external]
     fn swap(desc: SwapDesc, path: SwapPath) {
         let caller = get_caller_address();
@@ -84,7 +94,7 @@ mod SwapHandler {
         let this_address = get_contract_address();
         let (next_to_token, next_pool, next_swap) = _get_next_swap(path, step);
 
-        if next_to_token.is_zero() { // TODO check is_zero working as expected for ContractAddressZeroable
+        if next_to_token.is_zero() {
             return _swap(amt, src_token, path, step + 1);
         }
         let swap_address = swap_addresses::read(next_swap);

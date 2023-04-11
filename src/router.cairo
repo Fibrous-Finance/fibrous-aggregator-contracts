@@ -18,22 +18,28 @@ mod Router {
     }
 
     #[constructor]
-    fn constructor(owner: ContractAddress) { // TODO: wait openzeppelin to support ownable
+    fn constructor(owner: ContractAddress) { // TODO: wait openzeppelin ownable to get_owner function
     }
 
-    // TODO: wait openzeppelin ownable to get_owner function
+    
 
     #[view]
     fn get_swap_handler() -> ContractAddress {
         _swap_handler::read()
     }
 
-
+    // @notice Set swap handler contract address
+    // @param swap_handler Swap handler contract address
+    // @dev Only owner can call this function
     #[external]
     fn set_swap_handler(swap_handler: ContractAddress) {
+        // TODO: wait openzeppelin ownable to get_owner function
         _swap_handler::write(swap_handler)
     }
 
+    // @notice Swap tokens from one to another using fibrous router api
+    // @param desc Swap Description struct
+    // @param path Swap path struct
     #[external]
     fn swap(desc: SwapDesc, path: SwapPath) {
         let swap_handler = _swap_handler::read();
