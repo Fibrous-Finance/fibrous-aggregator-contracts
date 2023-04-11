@@ -1,0 +1,6 @@
+[package]
+name = "fibrous"
+version = "0.1.0"
+
+
+[[target.starknet-contract]]
