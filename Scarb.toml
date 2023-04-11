@@ -1,6 +1,7 @@
 [package]
-name = "fibrous"
+name = "fibrous-dex-aggragator"
 version = "0.1.0"
+authors = ["Fibrous"]
 
 
 [[target.starknet-contract]]
