@@ -21,10 +21,10 @@ src
 └── swap_handler.cairo
 ```
 
-[contracts/router.cairo](./src/router.cairo) holds the Router contract
+[src/router.cairo](./src/router.cairo) holds the Router contract
 that executes a given quote.
 <br>
-[contracts/swap_handler.cairo](./src/swap_handler.cairo) executes a single
+[src/swap_handler.cairo](./src/swap_handler.cairo) executes a single
 quotes on a given protocol
 <br>
 [src/amm](./src/amm) holds the example AMM contracts we demonstrate
