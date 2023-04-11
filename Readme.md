@@ -8,34 +8,28 @@ to see it in the work.
 > Fibrous is in its early stages of development. Use the code at your own risk.
 
 ```
-contracts
+src
 ├── amm
 │   ├── amm_1.cairo
 │   ├── amm_1_oracle.cairo
 │   └── amm_1_swapper.cairo
-├── erc20_self_mintable.cairo
 ├── interfaces
-│   ├── IOracle.cairo
-│   ├── ISwapHandler.cairo
-│   └── ISwapper.cairo
+│   ├── ISwapHandler
+│   └── ISwapper
+│   └── IERC20
 ├── router.cairo
 └── swap_handler.cairo
 ```
 
-[contracts/router.cairo](./contracts/router.cairo) holds the Router contract
+[contracts/router.cairo](./src/router.cairo) holds the Router contract
 that executes a given quote.
 <br>
-[contracts/swap_handler.cairo](./contracts/swap_handler.cairo) executes a single
+[contracts/swap_handler.cairo](./src/swap_handler.cairo) executes a single
 quotes on a given protocol
 <br>
-[contracts/amm](./contracts/amm) holds the example AMM contracts we demonstrate
+[src/amm](./src/amm) holds the example AMM contracts we demonstrate
 our routing algorithm with
 <br>
-[contracts/interfaces](./contracts/interfaces) includes various interfaces used
-in the contracts
-<br>
-[contracts/erc20_self_mintable.cairo](contracts/erc20_self_mintable.cairo)
-is the faucet token we use in the application
 
 ## Contributing
 
