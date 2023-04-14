@@ -27,6 +27,7 @@ mod Ownable {
     #[external]
     fn initializer(_owner: ContractAddress) {
          owner_ownable::write(_owner);
+         OwnershipTransferred(ContractAddressZeroable::zero(), _owner);
     }
 
     #[external]
