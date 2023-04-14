@@ -12,16 +12,19 @@ mod Router {
     use fibrous::interfaces::IERC20DispatcherTrait;
     use fibrous::interfaces::ISwapHandlerDispatcher;
     use fibrous::interfaces::ISwapHandlerDispatcherTrait;
+    use fibrous::ownable::Ownable;
 
     struct Storage {
         _swap_handler: ContractAddress, 
     }
 
     #[constructor]
-    fn constructor(owner: ContractAddress) { // TODO: wait openzeppelin ownable to get_owner function
+    fn constructor(
+        owner: ContractAddress
+    ) { 
+        Ownable::initializer(owner);
     }
 
-    
 
     #[view]
     fn get_swap_handler() -> ContractAddress {
@@ -33,7 +36,7 @@ mod Router {
     // @dev Only owner can call this function
     #[external]
     fn set_swap_handler(swap_handler: ContractAddress) {
-        // TODO: wait openzeppelin ownable to get_owner function
+        Ownable::assert_only_owner();
         _swap_handler::write(swap_handler)
     }
 

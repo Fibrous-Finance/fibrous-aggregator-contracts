@@ -5,6 +5,7 @@ mod FibrousTestAmm {
     use starknet::get_contract_address;
     use starknet::get_caller_address;
     use array::ArrayTrait;
+    use fibrous::ownable::Ownable;
 
     #[abi]
     trait IERC20 {
@@ -23,8 +24,8 @@ mod FibrousTestAmm {
     fn constructor(token_a: ContractAddress, token_b: ContractAddress, owner: ContractAddress) {
         _token_a::write(token_a);
         _token_b::write(token_b);
-    // TODO wait openzeppelin to support ownable or write own 
-    }
+        Ownable::initializer(owner);
+        }
 
     // @notice Gets the balance of the pool for a given token
     // @param token The address of the token
@@ -69,7 +70,7 @@ mod FibrousTestAmm {
     // @param liq_amount The amount of liquidity to add
     #[external]
     fn add_liquidity(token: ContractAddress, liq_amount: u256) {
-        // TODO assert only owner
+        Ownable::assert_only_owner();
 
         _assert_valid_token(token);
 
@@ -83,7 +84,7 @@ mod FibrousTestAmm {
     // @param liq_amount The amount of liquidity to remove
     #[external]
     fn remove_liquidity(token: ContractAddress, liq_amount: u256) {
-        // TODO assert only owner
+        Ownable::assert_only_owner();
 
         _assert_valid_token(token);
 

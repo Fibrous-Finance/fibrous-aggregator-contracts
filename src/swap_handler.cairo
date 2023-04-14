@@ -13,6 +13,7 @@ mod SwapHandler {
     use fibrous::interfaces::IERC20DispatcherTrait;
     use fibrous::interfaces::ISwapperDispatcher;
     use fibrous::interfaces::ISwapperDispatcherTrait;
+    use fibrous::ownable::Ownable;
 
 
     struct Storage {
@@ -22,9 +23,9 @@ mod SwapHandler {
 
 
     #[constructor]
-    fn constructor(caller: felt252, _router: ContractAddress) {
+    fn constructor(owner:ContractAddress , _router: ContractAddress) {
         router::write(_router);
-    // TODO wait openzeppelin to support ownable or write own 
+        Ownable::initializer(owner);
     }
 
     #[view]
@@ -37,7 +38,7 @@ mod SwapHandler {
     // @dev only owner can call
     #[external]
     fn set_router(_router: ContractAddress) {
-        // TODO wait openzeppelin to support ownable or write own 
+        Ownable::assert_only_owner();
         router::write(_router)
     }
 
@@ -47,7 +48,7 @@ mod SwapHandler {
     // @dev only owner can call
     #[external]
     fn set_swap_address(idx: felt252, _swap_address: ContractAddress) {
-        // TODO wait openzeppelin to support ownable or write own 
+        Ownable::assert_only_owner();
         swap_addresses::write(idx, _swap_address)
     }
 

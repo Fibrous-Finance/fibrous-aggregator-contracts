@@ -6,6 +6,8 @@ mod AmmSwapper {
     use starknet::get_caller_address;
     use starknet::get_contract_address;
     use zeroable::Zeroable;
+    use fibrous::ownable::Ownable;
+
 
     #[abi]
     trait Amm {
@@ -25,8 +27,8 @@ mod AmmSwapper {
     }
 
     #[constructor]
-    fn constructor(caller: ContractAddress, swap_handler: ContractAddress) {
-        // TODO wait openzeppelin to support ownable or write own 
+    fn constructor(owner: ContractAddress, swap_handler: ContractAddress) {
+        Ownable::initializer(owner);
         _swap_handler::write(swap_handler);
     }
 
@@ -37,7 +39,7 @@ mod AmmSwapper {
 
     #[external]
     fn set_swap_handler(swap_handler: ContractAddress) {
-        // TODO only owner 
+        Ownable::assert_only_owner();
         _swap_handler::write(swap_handler);
     }
 

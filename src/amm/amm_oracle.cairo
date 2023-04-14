@@ -49,6 +49,7 @@ mod AmmRouter {
     use starknet::contract_address_to_felt252;
     use integer::u256_from_felt252;
     use array::ArrayTrait;
+    ıse fibrous::ownable::Ownable;
 
     #[abi]
     trait Amm {
@@ -62,7 +63,8 @@ mod AmmRouter {
     }
 
     #[constructor]
-    fn constructor(owner: ContractAddress) { // TODO: wait openzeppelin to support ownable
+    fn constructor(owner: ContractAddress) { 
+        Ownable::initializer(owner);
     }
 
     #[view]
