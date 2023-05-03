@@ -16,7 +16,8 @@ mod newRouter {
     use gas::withdraw_gas_all;
     use array::array_new;
     use array::array_append;
-    
+    use option::OptionTrait;
+
     #[abi]
     trait Amm {
         fn swap(token_from: ContractAddress, amount_from: u256) -> u256;
@@ -46,7 +47,7 @@ mod newRouter {
     // @param desc Swap Description struct
     // @param path Swap path struct
     #[external]
-    fn swap(desc: SwapDesc, path: SwapPath) {
+    fn swap(desc: SwapDesc, mut path: SwapPath) {
         let swap_handler = _swap_handler::read();
         let caller = get_caller_address();
         let this_address = get_contract_address();
@@ -58,7 +59,7 @@ mod newRouter {
         assert(!path.path_0.is_zero(), 'Source token can not be zero');
         assert(!path.path_3.is_zero(), 'Destination token cant be zero');
 
-        _swap(desc.amt, path.path_0, path, 0);
+        _swap(desc.amt, path.path_0, ref path, 0);
 
         let after_balance = IERC20Dispatcher {
             contract_address: desc.token_out
@@ -69,7 +70,7 @@ mod newRouter {
         IERC20Dispatcher { contract_address: desc.token_out }.transfer(caller, after_balance);
     }
 
-    fn _swap(amt: u256, src_token: ContractAddress, path: SwapPath, step: felt252) {
+    fn _swap(amt: u256, src_token: ContractAddress, ref path: SwapPath, step: felt252) {
         match withdraw_gas() {
             Option::Some(_) => {},
             Option::None(_) => {
@@ -81,21 +82,13 @@ mod newRouter {
         let this_address = get_contract_address();
         let (next_to_token, next_pool, next_swap) = _get_next_swap(path, step);
 
-        if next_to_token.is_zero() {
-            return _swap(amt, src_token, path, step + 1);
+        if (next_to_token.is_zero()) {
+            return _swap(amt, src_token, ref path, step + 1);
         }
-        // let swap_address = swap_addresses::read(next_swap);
-
-        // assert(!swap_address.is_zero(), 'No swap defined for given index');
-
-        let tokenDispatcher = IERC20Dispatcher { contract_address: src_token };
-        let src_balance = tokenDispatcher.balanceOf(this_address);
-        // tokenDispatcher.approve(swap_address, src_balance);
-
         let amt_out = _swap_amm(src_token, next_to_token, next_pool, amt);
 
-        if next_to_token != path.path_3 {
-            return _swap(amt_out, next_to_token, path, step + 1);
+        if (next_to_token != path.path_3) {
+            return _swap(amt_out, next_to_token, ref path, step + 1);
         }
         return ();
     }
@@ -106,13 +99,25 @@ mod newRouter {
         pool: ContractAddress,
         amount_in: u256
     ) -> u256 {
+        match withdraw_gas() {
+            Option::Some(_) => {},
+            Option::None(_) => {
+                let mut data = array_new::<felt252>();
+                array_append::<felt252>(ref data, 'OOG');
+                panic(data);
+            },
+        }
         assert(!token_in.is_zero(), 'Token in cannot be zero');
         assert(!token_out.is_zero(), 'Token out cannot be zero');
         assert(!pool.is_zero(), 'Pool cannot be zero');
         assert(token_in != token_out, 'Same token provided');
         let this_address = get_contract_address();
 
-        let amount_out = AmmDispatcher { contract_address: pool }.swap(token_in, amount_in); // TODO: swap function need to be dynamic cuz all pools almost have different swap function and none of them return
+        let amount_out = AmmDispatcher {
+            contract_address: pool
+        }.swap(
+            token_in, amount_in
+        ); // TODO: swap function need to be dynamic cuz all pools almost have different swap function and none of them return
 
         let out_balance = IERC20Dispatcher { contract_address: token_out }.balanceOf(this_address);
         assert(out_balance >= amount_out, 'Not enough balance');
