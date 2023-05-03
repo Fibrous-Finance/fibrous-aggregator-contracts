@@ -1,5 +1,5 @@
 #[contract]
-mod Router {
+mod newRouter {
     use starknet::get_caller_address;
     use starknet::get_contract_address;
     use starknet::ContractAddress;
@@ -11,9 +11,11 @@ mod Router {
     use fibrous::structs::SwapPath;
     use fibrous::interfaces::IERC20Dispatcher;
     use fibrous::interfaces::IERC20DispatcherTrait;
-    use fibrous::interfaces::ISwapperDispatcher;
-    use fibrous::interfaces::ISwapperDispatcherTrait;
     use fibrous::ownable::Ownable;
+    use gas::withdraw_gas;
+    use gas::withdraw_gas_all;
+    use array::array_new;
+    use array::array_append;
     
     #[abi]
     trait Amm {
@@ -68,11 +70,11 @@ mod Router {
     }
 
     fn _swap(amt: u256, src_token: ContractAddress, path: SwapPath, step: felt252) {
-        match gas::withdraw_gas_all(get_builtin_costs()) {
+        match withdraw_gas() {
             Option::Some(_) => {},
             Option::None(_) => {
-                let mut data = ArrayTrait::new();
-                data.append('Out of gas');
+                let mut data = array_new::<felt252>();
+                array_append::<felt252>(ref data, 'OOG');
                 panic(data);
             },
         }
@@ -82,13 +84,13 @@ mod Router {
         if next_to_token.is_zero() {
             return _swap(amt, src_token, path, step + 1);
         }
-        let swap_address = swap_addresses::read(next_swap);
+        // let swap_address = swap_addresses::read(next_swap);
 
-        assert(!swap_address.is_zero(), 'No swap defined for given index');
+        // assert(!swap_address.is_zero(), 'No swap defined for given index');
 
         let tokenDispatcher = IERC20Dispatcher { contract_address: src_token };
         let src_balance = tokenDispatcher.balanceOf(this_address);
-        tokenDispatcher.approve(swap_address, src_balance);
+        // tokenDispatcher.approve(swap_address, src_balance);
 
         let amt_out = _swap_amm(src_token, next_to_token, next_pool, amt);
 
@@ -110,7 +112,7 @@ mod Router {
         assert(token_in != token_out, 'Same token provided');
         let this_address = get_contract_address();
 
-        let amount_out = AmmDispatcher { contract_address: pool }.swap(token_in, amount_in);
+        let amount_out = AmmDispatcher { contract_address: pool }.swap(token_in, amount_in); // TODO: swap function need to be dynamic cuz all pools almost have different swap function and none of them return
 
         let out_balance = IERC20Dispatcher { contract_address: token_out }.balanceOf(this_address);
         assert(out_balance >= amount_out, 'Not enough balance');
