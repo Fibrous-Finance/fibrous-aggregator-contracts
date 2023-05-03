@@ -1,241 +1,220 @@
 %lang starknet
 
-## @title Swap Handler 
-## @dev Holds the swappers' info and does swaps
-## @dev Implements ISwapHandler
+/// @title Swap Handler
+/// @dev Holds the swappers' info and does swaps
+/// @dev Implements ISwapHandler
+
+from starkware.cairo.common.cairo_builtins import HashBuiltin
+from starkware.cairo.common.math import assert_not_zero
+from starkware.starknet.common.syscalls import get_caller_address, get_contract_address
 
 from openzeppelin.access.ownable.library import Ownable
 from openzeppelin.token.erc20.IERC20 import IERC20
 
-from starkware.cairo.common.cairo_builtins import HashBuiltin
-from starkware.cairo.common.math import assert_not_zero
-from starkware.cairo.common.uint256 import Uint256 
-from starkware.starknet.common.syscalls import (
-    get_caller_address, get_contract_address)
-
-from contracts.interfaces.ISwapHandler import SwapDesc, SwapPath
+from contracts.interfaces.ISwapHandler import SwapParams, Swap, RATE_EXTENSION
 from contracts.interfaces.ISwapper import ISwapper
+from starkware.cairo.common.uint256 import (
+    Uint256,
+    uint256_unsigned_div_rem,
+    assert_uint256_eq,
+    uint256_mul,
+    assert_uint256_lt
+)
 
-## Storage Variables
-################################################################################
 
-## @notice Address of the router, only router can call the swap handler
+// STORAGE VARIABLES
+
+// @notice Address of the router, only router can call the swap handler
 @storage_var
-func _router() -> (router: felt):
-end
+func _router() -> (router: felt) {
+}
 
-## @notice Each swap has its own address, this mapping stores those
+// @notice Each swap has its own address, this mapping stores those
+// @dev Maps protocol index to ISwapper contract
 @storage_var
-func _swap_addresses(idx: felt) -> (swap_address: felt):
-end
+func _swap_addresses(protocol: felt) -> (swap_address: felt) {
+}
 
-## Constructor
-################################################################################
+// CONSTRUCTOR
 
 @constructor
-func constructor{
-    syscall_ptr: felt*,
-    pedersen_ptr: HashBuiltin*,
-    range_check_ptr
-}(caller: felt, router: felt):
-    Ownable.initializer(caller)
-    _router.write(router)
-    return ()
-end
+func constructor{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+    caller: felt, router: felt
+) {
+    Ownable.initializer(caller);
+    _router.write(router);
+    return ();
+}
 
-## Views
-################################################################################
+// VIEW FUNCTIONS
 
 @view
-func get_owner{
-    syscall_ptr: felt*,
-    pedersen_ptr: HashBuiltin*,
-    range_check_ptr
-}() -> (owner: felt):
-    let (owner: felt) = Ownable.owner()
-    return (owner=owner)
-end
+func get_owner{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() -> (owner: felt) {
+    let (owner: felt) = Ownable.owner();
+    return (owner=owner);
+}
 
-## Externals
-################################################################################
+// EXTERNAL FUNCTIONS
 
 @external
-func set_router{
-    syscall_ptr: felt*,
-    pedersen_ptr: HashBuiltin*,
-    range_check_ptr
-}(new_router: felt):
-    Ownable.assert_only_owner()
-    _router.write(new_router)
+func set_router{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(new_router: felt) {
+    Ownable.assert_only_owner();
+    _router.write(new_router);
 
-    return ()
-end
+    return ();
+}
 
 @external
-func set_swap_address{
-    syscall_ptr: felt*,
-    pedersen_ptr: HashBuiltin*,
-    range_check_ptr
-}(idx: felt, swap_address: felt):
-    Ownable.assert_only_owner()
-    _swap_addresses.write(idx, swap_address)
+func set_swap_address{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+    idx: felt, swap_address: felt
+) {
+    Ownable.assert_only_owner();
+    _swap_addresses.write(idx, swap_address);
 
-    return ()
-end
+    return ();
+}
 
+// @notice Executes a list of swaps
+// @param swaps     : Swap[]        List of swaps
+// @param params    : SwapParams    Swap parameters
 @external
-func swap{
-    syscall_ptr: felt*,
-    pedersen_ptr: HashBuiltin*,
-    range_check_ptr
-}(desc: SwapDesc, path: SwapPath):
-    alloc_locals
-    let (local caller) = get_caller_address()
-    let (local this_address) = get_contract_address()
+func swap{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+    swaps_len: felt,
+    swaps: Swap*,
+    params: SwapParams
+) {
+    alloc_locals;
 
-    _assert_only_router()
+    // Get the caller address
+    let (local caller: felt) = get_caller_address();
 
-    with_attr error_message("Source token cannot be zero"):
-        assert_not_zero(path.path_0)
-    end
-    
-    with_attr error_message("Destination token cannot be zero"):
-        assert_not_zero(path.path_3)
-    end
+    // Get the address of this contract
+    let (local this_address: felt) = get_contract_address();
 
-    # Get tokens from the router
-    let (success) = IERC20.transferFrom(
-        contract_address=desc.token_in,
+    with_attr error_message("Only router can swap") {
+        _assert_only_router(caller);
+    }
+
+    // Get starting amount from the router 
+    let (router_rcv_success) = IERC20.transferFrom(
+        contract_address=params.token_in,
         sender=caller,
         recipient=this_address,
-        amount=desc.amt)
-    assert success = 1
+        amount=params.amount
+    );
+    assert router_rcv_success = 1;
 
-    # Do the swaps
-    _swap(
-        amt=desc.amt,
-        src_token=path.path_0,
-        path=path,
-        step=0)
-    
-    # Return all the balance back
+    // Do swaps
+    _swap(swaps_len=swaps_len, swaps=swaps);
+
+    // Return balance of token_out to the router
     let (out_balance: Uint256) = IERC20.balanceOf(
-        contract_address=desc.token_out,
-        account=this_address)
+        contract_address=params.token_out,
+        account=this_address
+    );
 
-    let (success) = IERC20.transfer(
-        contract_address=desc.token_out,
+    let (router_send_success) = IERC20.transfer(
+        contract_address=params.token_out,
         recipient=caller,
-        amount=out_balance)
-    assert success = 1
+        amount=out_balance
+    );
+    assert router_send_success = 1;
 
-    return ()
-end
+    return ();
+}
 
-func _swap{
-    syscall_ptr: felt*,
-    pedersen_ptr: HashBuiltin*,
-    range_check_ptr
-}(
-    amt: Uint256,
-    src_token: felt, 
-    path: SwapPath,
-    step: felt
-):
-    alloc_locals
-    let (local this_address) = get_contract_address()
+// @notice Goes through each swap and executes it
+// @dev Base Case: swaps_len == 0
+// @dev For each swap handler approves tokens to the swapper, then it is swapper's responsibility to
+//      send the tokens back to the swap handler after the swap
+func _swap{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+    swaps_len: felt, swaps: Swap*
+) {
+    alloc_locals;
+    let (local this_address) = get_contract_address();
 
-    # Determine the next target token from step
-    let (next_to_token, next_pool, next_swap) = _get_next_swap(step, path)
+    if (swaps_len == 0) {
+        return ();
+    }
 
-    # If there's no such token go to the next step
-    # At last step next_to_token mustn't be 0 as it will be the destination
-    # token
-    if next_to_token == 0:
-        return _swap(amt=amt, src_token=src_token, path=path, step=step+1)
-    end
+    // Get the swapper for the protocol
+    let (swap_address) = _swap_addresses.read([swaps].protocol);
 
-    let (swap_address: felt) = _swap_addresses.read(idx=next_swap)
+    with_attr error_message("Swapper address is zero") {
+        assert_not_zero(swap_address);
+    }
 
-    with_attr error_message("No swap defined for given index"):
-        assert_not_zero(swap_address)
-    end
-
+    // Calculate the amount in from the handler's token balance and rate of the swap
     let (src_balance: Uint256) = IERC20.balanceOf(
-        contract_address=src_token,
-        account=this_address)
+        contract_address=[swaps].token_in,
+        account=this_address
+    );
+    let (amount_in: Uint256) = _get_amount_in(src_balance, [swaps].rate);
 
-    # Approve tokens to the swapper
-    let (success) = IERC20.approve(
-        contract_address=src_token,
+    with_attr error_message("Swap in failed") {
+        assert_uint256_lt(Uint256(0,0), amount_in);
+    }
+
+    // Approve tokens to the swapper
+    let (approve_success) = IERC20.approve(
+        contract_address=[swaps].token_in,
         spender=swap_address,
-        amount=src_balance)
-    assert success = 1
+        amount=amount_in
+    );
+    assert approve_success = 1;
 
-    # Do the swap
-    let (amt_out: Uint256) = ISwapper.swap(
+    // Do the swap
+    // Swapper has to send the tokens back to the Swap Handler
+    let (amount_out: Uint256) = ISwapper.swap(
         contract_address=swap_address,
-        token_in=src_token,
-        token_out=next_to_token,
-        pool=next_pool,
-        amt=amt)
-        
-    # If destination token isn't reached, do the next swap
-    if next_to_token != path.path_3:
-        return _swap(amt=amt_out, src_token=next_to_token, path=path, step=step+1)
-    end
+        token_in=[swaps].token_in,
+        token_out=[swaps].token_out,
+        pool=[swaps].pool_address,
+        amt=amount_in,
+    );
 
-    return ()
-end
+    with_attr error_message("Swap out failed") {
+        assert_uint256_lt(Uint256(0,0), amount_out);
+    }
 
-## Internals
-################################################################################
+    return _swap(swaps_len - 1, swaps + Swap.SIZE);
+}
 
-func _get_next_swap{
-    syscall_ptr: felt*,
-    pedersen_ptr: HashBuiltin*,
-    range_check_ptr
-}(
-    idx: felt, 
-    path: SwapPath
-) -> (
-    next_token: felt,
-    next_pool: felt,
-    next_swap: felt
-):
-    if idx == 0:
-        return (
-            next_token=path.path_1, 
-            next_pool=path.pool_1,
-            next_swap=path.swap_1)
-    else:
-        if idx == 1:
-            return (
-                next_token=path.path_2, 
-                next_pool=path.pool_2,
-                next_swap=path.swap_2)
-        else:
-            assert idx = 2
-            return (
-                next_token=path.path_3, 
-                next_pool=path.pool_3,
-                next_swap=path.swap_3)
-        end
-    end
-end
+// HELPER FUNCTIONS
 
-## @notice Asserts if caller is the router
-func _assert_only_router{
-    syscall_ptr: felt*,
-    pedersen_ptr: HashBuiltin*,
-    range_check_ptr
-}():
-    let (caller: felt) = get_caller_address()
-    let (router: felt) = _router.read()
+// @notice Calculates amount in
+// @param amount   : Uint256       Amount of token out
+// @param rate     : felt          Rate of the swap
+// @dev Amount In = Amount * Rate Extended /  Rate Extension
+// @dev Rate of 25.725 would look like 257250 when it is extended
+func _get_amount_in{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr} (
+    amount: Uint256,
+    rate: felt
+) -> (amount_in: Uint256) {
+    alloc_locals;
 
-    with_attr error_message("Only router can call this function"):
-        assert caller = router
-    end
+    let rate_u256: Uint256 = Uint256(rate, 0);
+    let ext_u256: Uint256 = Uint256(RATE_EXTENSION, 0);
 
-    return ()
-end
+    let (local extended: Uint256, carry: Uint256) = uint256_mul(amount, rate_u256);
+    with_attr error_message("Overflow on extension") {
+        assert_uint256_eq(carry, Uint256(0,0));
+    }
+
+    let (amount_in: Uint256, _remainder: Uint256) = uint256_unsigned_div_rem(extended, ext_u256);
+    return (amount_in=amount_in);
+}
+
+// @notice Asserts if caller is the router
+// @param caller   : felt          Address of the caller
+func _assert_only_router{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+    caller: felt
+) {
+    let (router: felt) = _router.read();
+
+    with_attr error_message("Only router can call this function") {
+        assert caller = router;
+    }
+
+    return ();
+}
