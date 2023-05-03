@@ -1,7 +1,7 @@
 use starknet::ContractAddress;
 trait IOwnable {
     fn initializer(_owner: ContractAddress);
-    fn transferOwnership( newOwner: ContractAddress);
+    fn transferOwnership(newOwner: ContractAddress);
     fn renounceOwnership();
     fn get_owner() -> ContractAddress;
     fn assert_only_owner();
@@ -15,19 +15,18 @@ mod Ownable {
     use starknet::ContractAddressZeroable;
     use starknet::Zeroable;
 
-    struct Storage{
-        owner_ownable: ContractAddress,
+    struct Storage {
+        owner_ownable: ContractAddress, 
     }
 
     #[event]
-    fn OwnershipTransferred(previousOwner: ContractAddress, newOwner: ContractAddress){}
-
+    fn OwnershipTransferred(previousOwner: ContractAddress, newOwner: ContractAddress) {}
 
 
     #[external]
     fn initializer(_owner: ContractAddress) {
-         owner_ownable::write(_owner);
-         OwnershipTransferred(ContractAddressZeroable::zero(), _owner);
+        owner_ownable::write(_owner);
+        OwnershipTransferred(ContractAddressZeroable::zero(), _owner);
     }
 
     #[external]
@@ -59,5 +58,4 @@ mod Ownable {
         assert(!caller.is_zero(), 'Caller can not be zero');
         assert(owner == caller, 'Only owner can call');
     }
-
 }

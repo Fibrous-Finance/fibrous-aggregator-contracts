@@ -25,7 +25,7 @@ mod FibrousTestAmm {
         _token_a::write(token_a);
         _token_b::write(token_b);
         Ownable::initializer(owner);
-        }
+    }
 
     // @notice Gets the balance of the pool for a given token
     // @param token The address of the token

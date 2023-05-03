@@ -19,9 +19,7 @@ mod Router {
     }
 
     #[constructor]
-    fn constructor(
-        owner: ContractAddress
-    ) { 
+    fn constructor(owner: ContractAddress) {
         Ownable::initializer(owner);
     }
 
