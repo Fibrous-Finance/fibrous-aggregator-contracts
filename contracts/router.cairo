@@ -5,15 +5,24 @@
 
 from openzeppelin.access.ownable.library import Ownable
 from openzeppelin.token.erc20.IERC20 import IERC20
+from openzeppelin.token.erc721.IERC721 import IERC721
 
 from starkware.cairo.common.cairo_builtins import HashBuiltin
-from starkware.cairo.common.uint256 import Uint256, uint256_le
+from starkware.cairo.common.uint256 import (
+    Uint256,
+    uint256_le,
+    uint256_sub,
+    uint256_mul_div_mod,
+    assert_uint256_eq
+)
 from starkware.starknet.common.syscalls import (
     get_caller_address,
     get_contract_address,
     get_tx_info
 )
 from contracts.interfaces.ISwapHandler import ISwapHandler, Swap, SwapParams
+
+const FEE_EXTENSION = 10 ** 6;
 
 // Storage Variables
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,12 +31,32 @@ from contracts.interfaces.ISwapHandler import ISwapHandler, Swap, SwapParams
 func _swap_handler() -> (swap_handler: felt) {
 }
 
+@storage_var
+func _stark_rocks_address() -> (stark_rocks_address: felt) {
+}
+
+/// @notice Fee charged for each swap
+/// @dev It is a value between 0 and FEE_EXTENSION
+/// @dev If the fee is x percent, the value stored in the storage variable
+///      is x * FEE_EXTENSION / 100
+@storage_var
+func _router_fee() -> (router_fee: felt) {
+}
+
 // Constructor
 ////////////////////////////////////////////////////////////////////////////////
 
 @constructor
-func constructor{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(owner: felt) {
+func constructor{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+    owner: felt,
+    stark_rocks_address: felt,
+    router_fee: felt,
+) {
     Ownable.initializer(owner);
+
+    _router_fee.write(value=router_fee);
+    _stark_rocks_address.write(value=stark_rocks_address);
+
     return ();
 }
 
@@ -46,6 +75,20 @@ func get_swap_handler{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_chec
     return _swap_handler.read();
 }
 
+@view
+func get_router_fee{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() -> (
+    router_fee: felt
+) {
+    return _router_fee.read();
+}
+
+@view
+func get_stark_rocks_address{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() -> (
+    stark_rocks_address: felt
+) {
+    return _stark_rocks_address.read();
+}
+
 // Externals
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,6 +98,24 @@ func set_swap_handler{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_chec
 ) {
     Ownable.assert_only_owner();
     _swap_handler.write(value=new_handler);
+    return ();
+}
+
+@external
+func set_router_fee{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+    new_router_fee: felt
+) {
+    Ownable.assert_only_owner();
+    _router_fee.write(value=new_router_fee);
+    return ();
+}
+
+@external
+func set_stark_rocks_address{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+    new_address: felt
+) {
+    Ownable.assert_only_owner();
+    _stark_rocks_address.write(value=new_address);
     return ();
 }
 
@@ -119,13 +180,75 @@ func swap{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
         assert min_received = 1;
     }
 
+    let (output_amount) = calculate_output(after_balance, swaps_len);
+
     // Send tokens to the destination
     let (success) = IERC20.transfer(
         contract_address=params.token_out,
         recipient=params.destination, 
-        amount=after_balance
+        amount=output_amount
     );
     assert success = 1;
 
     return ();
+}
+
+// Helpers
+////////////////////////////////////////////////////////////////////////////////
+
+/// @notice Calculates the output amount after fees
+/// @param amount         : felt  Amount to calculate output for
+/// @param is_direct      : felt  Whether the swap is direct or not
+/// @return output_amount : felt  Output amount after fees
+/// @dev Fee rules:
+///     - Direct swaps have no fees
+///     - If tx origin has a StarkRocks NFT, there is no fee
+///     - Otherwise fee is read from _router_fee storage variable
+func calculate_output{ syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr }(
+    amount: Uint256,
+    swaps_len: felt
+) -> (
+    output_amount: Uint256
+) {
+    alloc_locals;
+
+    if (swaps_len == 1) {
+        return (output_amount=amount);
+    }
+    
+    let (tx_info) = get_tx_info();
+    let (stark_rocks_address) = _stark_rocks_address.read();
+
+    let (stark_rocks_balance) = IERC721.balanceOf(
+        contract_address=stark_rocks_address,
+        owner=tx_info.account_contract_address
+    );
+
+    // If tx origin has a StarkRocks NFT, there is no fee
+    if (stark_rocks_balance.low != 0) {
+        return (output_amount=amount);
+    }
+
+    let (router_fee) = _router_fee.read();
+    let (
+        local output_fee_lo: Uint256,
+        local output_fee_hi: Uint256,
+        local output_fee_rem: Uint256
+    ) = uint256_mul_div_mod(
+        amount,
+        Uint256(router_fee, 0),
+        Uint256(FEE_EXTENSION,0)
+    );
+
+    // `router_fee` should be a very small number compared to `amount` so there
+    // should be no remainder and division result should be less then 2**256
+    with_attr error_message("Fee calculation overflow") {
+        assert_uint256_eq(Uint256(0,0), output_fee_hi);
+        assert_uint256_eq(Uint256(0,0), output_fee_rem);
+    }
+
+    // `output_amount` = `amount` * `router_fee` / `FEE_EXTENSION`
+    let (output_amount) = uint256_sub(amount, output_fee_lo);
+
+    return (output_amount=output_amount);
 }
