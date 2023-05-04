@@ -29,11 +29,12 @@ from starkware.cairo.common.uint256 import (
 func _router() -> (router: felt) {
 }
 
-// @notice Each swap has its own address, this mapping stores those
-// @dev Maps protocol index to ISwapper contract
+/// @notice Stores the classhash of the proxy contract that'll do the swap for
+/// each protocol
 @storage_var
-func _swap_addresses(protocol: felt) -> (swap_address: felt) {
+func _swap_proxies(protocol: felt) -> (proxy_hash: felt) {
 }
+
 
 // CONSTRUCTOR
 
@@ -54,6 +55,16 @@ func get_owner{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     return (owner=owner);
 }
 
+@view
+func get_swap_proxy{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+    protocol: felt
+) -> (
+    proxy_hash: felt
+) {
+    let (proxy_hash) = _swap_proxies.read(protocol);
+    return (proxy_hash=proxy_hash);
+}
+
 // EXTERNAL FUNCTIONS
 
 @external
@@ -65,11 +76,11 @@ func set_router{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}
 }
 
 @external
-func set_swap_address{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
-    idx: felt, swap_address: felt
+func set_swap_proxy{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+    protocol: felt, proxy_hash: felt
 ) {
     Ownable.assert_only_owner();
-    _swap_addresses.write(idx, swap_address);
+    _swap_proxies.write(protocol, proxy_hash);
 
     return ();
 }
@@ -137,12 +148,12 @@ func _swap{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
         return ();
     }
 
-    // Get the swapper for the protocol
-    let (swap_address) = _swap_addresses.read([swaps].protocol);
+    // Get classhash of the proxy contract
+    let (proxy_hash) = _swap_proxies.read([swaps].protocol);
 
-    with_attr error_message("Swapper address is zero") {
-        assert_not_zero(swap_address);
-    }
+    with_attr error_message("Proxy classhash is zero") {
+        assert_not_zero(proxy_hash);
+    } 
 
     // Calculate the amount in from the handler's token balance and rate of the swap
     let (src_balance: Uint256) = IERC20.balanceOf(
@@ -155,18 +166,8 @@ func _swap{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
         assert_uint256_lt(Uint256(0,0), amount_in);
     }
 
-    // Approve tokens to the swapper
-    let (approve_success) = IERC20.approve(
-        contract_address=[swaps].token_in,
-        spender=swap_address,
-        amount=amount_in
-    );
-    assert approve_success = 1;
-
-    // Do the swap
-    // Swapper has to send the tokens back to the Swap Handler
-    let (amount_out: Uint256) = ISwapper.swap(
-        contract_address=swap_address,
+    let (amount_out: Uint256) = ISwapper.library_call_swap(
+        class_hash=proxy_hash,
         token_in=[swaps].token_in,
         token_out=[swaps].token_out,
         pool=[swaps].pool_address,
