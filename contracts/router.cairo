@@ -11,6 +11,7 @@ from starkware.cairo.common.cairo_builtins import HashBuiltin
 from starkware.cairo.common.uint256 import (
     Uint256,
     uint256_le,
+    uint256_add,
     uint256_sub,
     uint256_mul_div_mod,
     assert_uint256_eq
@@ -33,6 +34,10 @@ func _swap_handler() -> (swap_handler: felt) {
 
 @storage_var
 func _stark_rocks_address() -> (stark_rocks_address: felt) {
+}
+
+@storage_var
+func _accrued_fees(token: felt, lo_hi: felt) -> (accrued_fees: felt) {
 }
 
 /// @notice Fee charged for each swap
@@ -180,13 +185,26 @@ func swap{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
         assert min_received = 1;
     }
 
-    let (output_amount) = calculate_output(after_balance, swaps_len);
+    let (accrued_fees_lo) = _accrued_fees.read(params.token_out, 0);
+    let (accrued_fees_hi) = _accrued_fees.read(params.token_out, 1);
+
+    let accrued_fees_before: Uint256 = Uint256(accrued_fees_lo, accrued_fees_hi);
+
+    // Calculate amount to be received by user and fee amount
+    let (output_amount) = uint256_sub(after_balance, accrued_fees_before);
+    let (receive_amount, fee_amount) = calculate_output(output_amount, swaps_len);
+
+    // Update accrued fees
+    // @dev Here, carry can't be 1 realistically, so we're skipping the check
+    let (accrued_fees_after, _) = uint256_add(accrued_fees_before, fee_amount);
+    _accrued_fees.write(params.token_out, 0, accrued_fees_after.low);
+    _accrued_fees.write(params.token_out, 1, accrued_fees_after.high);
 
     // Send tokens to the destination
     let (success) = IERC20.transfer(
         contract_address=params.token_out,
         recipient=params.destination, 
-        amount=output_amount
+        amount=receive_amount
     );
     assert success = 1;
 
@@ -217,6 +235,10 @@ func claim{ syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr }(
     );
     assert success = 1;
 
+    // Reset accrued fees
+    _accrued_fees.write(token, 0, 0);
+    _accrued_fees.write(token, 1, 0);
+
     return ();
 }
 
@@ -235,12 +257,13 @@ func calculate_output{ syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_che
     amount: Uint256,
     swaps_len: felt
 ) -> (
-    output_amount: Uint256
+    output_amount: Uint256,
+    fee_amount: Uint256,
 ) {
     alloc_locals;
 
     if (swaps_len == 1) {
-        return (output_amount=amount);
+        return (output_amount=amount, fee_amount=Uint256(0,0));
     }
     
     let (tx_info) = get_tx_info();
@@ -253,7 +276,7 @@ func calculate_output{ syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_che
 
     // If tx origin has a StarkRocks NFT, there is no fee
     if (stark_rocks_balance.low != 0) {
-        return (output_amount=amount);
+        return (output_amount=amount, fee_amount=Uint256(0,0));
     }
 
     let (router_fee) = _router_fee.read();
@@ -277,5 +300,5 @@ func calculate_output{ syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_che
     // `output_amount` = `amount` * `router_fee` / `FEE_EXTENSION`
     let (output_amount) = uint256_sub(amount, output_fee_lo);
 
-    return (output_amount=output_amount);
+    return (output_amount=output_amount, fee_amount=output_fee_lo);
 }
