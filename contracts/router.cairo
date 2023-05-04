@@ -193,6 +193,33 @@ func swap{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     return ();
 }
 
+/// @notice Allows the owner to claim the tokens in the contract
+/// @param token       : felt  Token to claim
+/// @param destination : felt  Destination to send the tokens to
+@external
+func claim{ syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr }(
+    token: felt,
+    destination: felt
+) {
+    Ownable.assert_only_owner();
+
+    let (this_address) = get_contract_address();
+
+    let (this_token_balance) = IERC20.balanceOf(
+        contract_address=token,
+        account=this_address,
+    );
+
+    let (success) = IERC20.transfer(
+        contract_address=token,
+        recipient=destination,
+        amount=this_token_balance,
+    );
+    assert success = 1;
+
+    return ();
+}
+
 // Helpers
 ////////////////////////////////////////////////////////////////////////////////
 
