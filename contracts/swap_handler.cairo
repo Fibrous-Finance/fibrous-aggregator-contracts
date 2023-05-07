@@ -40,11 +40,33 @@ func _swap_proxies(protocol: felt) -> (proxy_hash: felt) {
 
 @constructor
 func constructor{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
-    caller: felt, router: felt
+    caller: felt,
+    router: felt,
+    initial_swap_proxies_len: felt,
+    initial_swap_proxies: felt*,
 ) {
     Ownable.initializer(caller);
+
     _router.write(router);
+    _set_initial_swappers(initial_swap_proxies_len, initial_swap_proxies, 0);
+
     return ();
+}
+
+func _set_initial_swappers{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+    initial_swap_proxies_len: felt,
+    initial_swap_proxies: felt*,
+    idx: felt
+) {
+    alloc_locals;
+
+    if (idx == initial_swap_proxies_len) {
+        return ();
+    }
+
+    _swap_proxies.write(idx + 1, initial_swap_proxies[idx]);
+
+    return _set_initial_swappers(initial_swap_proxies_len, initial_swap_proxies, idx + 1);
 }
 
 // VIEW FUNCTIONS

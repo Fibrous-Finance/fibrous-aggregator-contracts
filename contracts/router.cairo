@@ -283,7 +283,7 @@ func calculate_output{ syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_che
     let (
         local output_fee_lo: Uint256,
         local output_fee_hi: Uint256,
-        local output_fee_rem: Uint256
+        _
     ) = uint256_mul_div_mod(
         amount,
         Uint256(router_fee, 0),
@@ -294,7 +294,6 @@ func calculate_output{ syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_che
     // should be no remainder and division result should be less then 2**256
     with_attr error_message("Fee calculation overflow") {
         assert_uint256_eq(Uint256(0,0), output_fee_hi);
-        assert_uint256_eq(Uint256(0,0), output_fee_rem);
     }
 
     // `output_amount` = `amount` * `router_fee` / `FEE_EXTENSION`
