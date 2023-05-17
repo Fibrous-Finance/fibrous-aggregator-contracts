@@ -11,6 +11,12 @@ namespace ISwapper {
     // @param token_out: Address of the outcoming token
     // @param amt: Amount of incoming token
     // @returns amt_out: Amount swapped
-    func swap(token_in: felt, token_out: felt, pool: felt, amt: Uint256) -> (amt_out: Uint256) {
+    func swap(
+        token_in: felt,
+        token_out: felt,
+        pool: felt,
+        amt: Uint256,
+        to: felt,
+    ) -> (amt_out: Uint256) {
     }
 }

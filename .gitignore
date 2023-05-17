@@ -1,4 +1,5 @@
 artifacts/
 abi/
 
+.DS_Store
 .env

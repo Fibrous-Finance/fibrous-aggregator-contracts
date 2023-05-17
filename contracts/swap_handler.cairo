@@ -194,6 +194,7 @@ func _swap{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
         token_out=[swaps].token_out,
         pool=[swaps].pool_address,
         amt=amount_in,
+        to=this_address,
     );
 
     with_attr error_message("Swap out failed") {
