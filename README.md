@@ -10,16 +10,27 @@ to see it in the work.
 ```
 contracts
 ├── amm
-│   ├── amm_1.cairo
-│   ├── amm_1_oracle.cairo
-│   └── amm_1_swapper.cairo
+│   ├── amm_1.cairo
+│   └── amm_1_swapper.cairo
 ├── erc20_self_mintable.cairo
 ├── interfaces
-│   ├── IOracle.cairo
-│   ├── ISwapHandler.cairo
-│   └── ISwapper.cairo
+│   ├── IOracle.cairo
+│   ├── ISwapHandler.cairo
+│   └── ISwapper.cairo
 ├── router.cairo
-└── swap_handler.cairo
+├── stark_rocks_mock.cairo
+├── swap_handler.cairo
+└── swappers
+    ├── v1
+    │   ├── jediswap_swapper.cairo
+    │   ├── myswap_swapper.cairo
+    │   ├── sithswap_swapper.cairo
+    │   └── tenkswap_swapper.cairo
+    └── v2
+        ├── jediswap_swapper.cairo
+        ├── myswap_swapper.cairo
+        ├── sithswap_swapper.cairo
+        └── tenkswap_swapper.cairo
 ```
 
 [contracts/router.cairo](./contracts/router.cairo) holds the Router contract
@@ -36,6 +47,9 @@ in the contracts
 <br>
 [contracts/erc20_self_mintable.cairo](contracts/erc20_self_mintable.cairo)
 is the faucet token we use in the application
+<br>
+[contracts/swappers](contracts/swappers/) includes swapper contracts that implement
+[ISwapper](contracts/interfaces/ISwapper.cairo)
 
 ## Contributing
 
