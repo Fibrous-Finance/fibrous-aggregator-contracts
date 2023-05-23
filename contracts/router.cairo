@@ -40,6 +40,14 @@ func _stark_rocks_address() -> (stark_rocks_address: felt) {
 func _accrued_fees(token: felt, lo_hi: felt) -> (accrued_fees: felt) {
 }
 
+/// @notice Fee charged for direct swaps
+/// @dev It is a value between 0 and FEE_EXTENSION
+/// @dev If the fee is x percent, the value stored in the storage variable
+///      is x * FEE_EXTENSION / 100
+@storage_var
+func _direct_swap_fee() -> (direct_swap_fee: felt) {
+}
+
 /// @notice Fee charged for each swap
 /// @dev It is a value between 0 and FEE_EXTENSION
 /// @dev If the fee is x percent, the value stored in the storage variable
@@ -55,10 +63,12 @@ func _router_fee() -> (router_fee: felt) {
 func constructor{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     owner: felt,
     stark_rocks_address: felt,
+    direct_swap_fee: felt,
     router_fee: felt,
 ) {
     Ownable.initializer(owner);
 
+    _direct_swap_fee.write(value=direct_swap_fee);
     _router_fee.write(value=router_fee);
     _stark_rocks_address.write(value=stark_rocks_address);
 
@@ -78,6 +88,13 @@ func get_swap_handler{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_chec
     swap_handler: felt
 ) {
     return _swap_handler.read();
+}
+
+@view
+func get_direct_swap_fee{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() -> (
+    direct_swap_fee: felt
+) {
+    return _direct_swap_fee.read();
 }
 
 @view
@@ -103,6 +120,15 @@ func set_swap_handler{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_chec
 ) {
     Ownable.assert_only_owner();
     _swap_handler.write(value=new_handler);
+    return ();
+}
+
+@external
+func set_direct_swap_fee{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
+    new_direct_swap_fee: felt
+) {
+    Ownable.assert_only_owner();
+    _direct_swap_fee.write(value=new_direct_swap_fee);
     return ();
 }
 
@@ -250,8 +276,8 @@ func claim{ syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr }(
 /// @param is_direct      : felt  Whether the swap is direct or not
 /// @return output_amount : felt  Output amount after fees
 /// @dev Fee rules:
-///     - Direct swaps have no fees
 ///     - If tx origin has a StarkRocks NFT, there is no fee
+///     - Direct swaps fee is read from _direct_swap_fee storage variable
 ///     - Otherwise fee is read from _router_fee storage variable
 func calculate_output{ syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr }(
     amount: Uint256,
@@ -262,10 +288,6 @@ func calculate_output{ syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_che
 ) {
     alloc_locals;
 
-    if (swaps_len == 1) {
-        return (output_amount=amount, fee_amount=Uint256(0,0));
-    }
-    
     let (tx_info) = get_tx_info();
     let (stark_rocks_address) = _stark_rocks_address.read();
 
@@ -279,19 +301,39 @@ func calculate_output{ syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_che
         return (output_amount=amount, fee_amount=Uint256(0,0));
     }
 
+    // If there is only one swap, calculate output using _direct_swap_fee
+    if (swaps_len == 1) {
+        // Calculate output using _direct_swap_fee
+        let (direct_swap_fee) = _direct_swap_fee.read();
+        return _calculate_output_with_fee(amount, Uint256(direct_swap_fee, 0));
+    }
+
+    // Otherwise, calculate output using _router_fee
     let (router_fee) = _router_fee.read();
+    return _calculate_output_with_fee(amount, Uint256(router_fee, 0));
+}
+
+func _calculate_output_with_fee{ syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr }(
+    amount: Uint256,
+    fee: Uint256
+) -> (
+    output_amount: Uint256, 
+    fee_amount: Uint256
+) {
+    alloc_locals;
+
     let (
         local output_fee_lo: Uint256,
         local output_fee_hi: Uint256,
         _
     ) = uint256_mul_div_mod(
         amount,
-        Uint256(router_fee, 0),
+        fee,
         Uint256(FEE_EXTENSION,0)
     );
 
-    // `router_fee` should be a very small number compared to `amount` so there
-    // should be no remainder and division result should be less then 2**256
+    // `fee` should be a very small number compared to `amount` so division 
+    // result should be less then 2**256
     with_attr error_message("Fee calculation overflow") {
         assert_uint256_eq(Uint256(0,0), output_fee_hi);
     }
