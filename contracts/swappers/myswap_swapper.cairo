@@ -31,8 +31,9 @@ func swap{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
     token_out: felt,
     pool: felt,
     amt_in: Uint256,
-    to: felt,
 ) -> (amt_out: Uint256) {
+    let (this_address) = get_contract_address();
+
     with_attr error_message("Same token provided") {
         assert_not_equal(token_in, token_out);
     }
@@ -66,7 +67,7 @@ func swap{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(
         amount_to_min=Uint256(1, 0)
     );
 
-    let (out_balance: Uint256) = IERC20.balanceOf(contract_address=token_out, account=to);
+    let (out_balance: Uint256) = IERC20.balanceOf(contract_address=token_out, account=this_address);
 
     return (amt_out=out_balance);
 }
