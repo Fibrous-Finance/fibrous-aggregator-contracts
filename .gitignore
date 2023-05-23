@@ -1,5 +1,7 @@
 artifacts/
 abi/
 
+node.json
+
 .DS_Store
 .env
