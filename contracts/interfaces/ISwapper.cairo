@@ -16,7 +16,6 @@ namespace ISwapper {
         token_out: felt,
         pool: felt,
         amt: Uint256,
-        to: felt,
     ) -> (amt_out: Uint256) {
     }
 }
